@@ -1,11 +1,12 @@
 {
-    "name": "money",
-    "short_name": "money",
-    "start_url": ".",
+    "name": "Money Manager",
+    "short_name": "Money",
+    "start_url": "/",
+    "scope": "/",
     "display": "standalone",
     "background_color": "#0175C2",
     "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "description": "예금, 적금, 배당금 관리 앱",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
