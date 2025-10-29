@@ -40,6 +40,48 @@
   <link rel="manifest" href="manifest.json">
 
  
+  <style>
+    /* iOS Safari address bar hiding fix */
+    body {
+      height: 500vh !important; /* Bigger than 100% to allow scroll */
+      position: static !important; /* Override absolute from flutter */
+      overflow-y: scroll !important; /* Allows vertical scrolling */
+      overflow-x: hidden !important;
+      touch-action: pan-y !important; /* Allows vertical scrolling */
+      overscroll-behavior: none; /* Avoid bouncing scrolling on top/bottom edge */
+      -webkit-overflow-scrolling: touch; /* Smooth scrolling on iOS */
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Centers flutter canvas with a size of the viewport */
+    flt-glass-pane {
+      position: fixed !important; /* Overrides absolute from flutter */
+      top: 50vh !important;
+      left: 50vw !important;
+      max-width: 100vw !important;
+      max-height: 100vh !important;
+      transform: translate(-50vw, -50vh) !important;
+    }
+
+    /* Support for dynamic viewport height (iOS 15+) */
+    @supports (height: 100dvh) {
+      flt-glass-pane {
+        top: 50dvh !important;
+        max-height: 100dvh !important;
+        transform: translate(-50vw, -50dvh) !important;
+      }
+    }
+
+    /* Loading indicator styling */
+    #loading {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+  </style>
+
 
   <script>
     // The value below is injected by flutter build, do not touch.
