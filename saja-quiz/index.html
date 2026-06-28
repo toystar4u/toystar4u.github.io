@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>사자성어 퀴즈</title>
+
+  <!-- 로컬 라이브러리 (오프라인 실행 가능) -->
+  <script src="./vendor/react.production.min.js"></script>
+  <script src="./vendor/react-dom.production.min.js"></script>
+  <script src="./vendor/babel.min.js"></script>
+  <script src="./idioms.js?v=2"></script>
+
+  <style>
+    :root {
+      --bg:#0f172a; --card:#1e293b; --card2:#273449; --accent:#f59e0b;
+      --accent2:#fbbf24; --text:#e2e8f0; --muted:#94a3b8; --ok:#22c55e;
+      --bad:#ef4444; --line:#334155;
+    }
+    * { box-sizing:border-box; }
+    body {
+      margin:0; font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",
+        "Malgun Gothic","Segoe UI",sans-serif;
+      background:radial-gradient(1200px 600px at 50% -10%, #1e293b, var(--bg));
+      color:var(--text); min-height:100vh; display:flex;
+      align-items:flex-start; justify-content:center; padding:32px 16px;
+    }
+    .app { width:100%; max-width:560px; }
+    .title { text-align:center; margin:8px 0 22px; }
+    .title h1 { margin:0; font-size:26px; letter-spacing:2px; }
+    .title p { margin:6px 0 0; color:var(--muted); font-size:14px; }
+
+    .card {
+      background:var(--card); border:1px solid var(--line); border-radius:18px;
+      padding:26px 24px; box-shadow:0 20px 60px rgba(0,0,0,.35);
+    }
+
+    /* 홈 */
+    .modes { display:flex; flex-direction:column; gap:14px; }
+    .mode {
+      text-align:left; background:var(--card); border:1px solid var(--line);
+      border-radius:16px; padding:18px 20px; cursor:pointer; color:var(--text);
+      display:flex; gap:16px; align-items:center; transition:.15s;
+    }
+    .mode:hover { border-color:var(--accent); transform:translateY(-2px); }
+    .mode .ic { font-size:30px; width:46px; text-align:center; }
+    .mode .t { font-size:17px; font-weight:700; }
+    .mode .d { font-size:13px; color:var(--muted); margin-top:3px; }
+
+    .fmt { display:flex; gap:10px; justify-content:center; margin:18px 0 4px; }
+    .fmt button {
+      flex:1; max-width:160px; padding:10px; border-radius:12px; cursor:pointer;
+      border:1px solid var(--line); background:var(--card2); color:var(--text);
+      font-size:14px; font-weight:600;
+    }
+    .fmt button.on { border-color:var(--accent); color:var(--accent2); background:#2a2310; }
+    .fmt .label { width:100%; text-align:center; color:var(--muted); font-size:13px; margin-bottom:4px; }
+    .opt {
+      display:flex; align-items:center; gap:10px; justify-content:center;
+      margin-top:16px; font-size:14px; color:var(--text); cursor:pointer;
+    }
+    .opt input { width:18px; height:18px; accent-color:var(--accent); cursor:pointer; }
+    .opt em { color:var(--muted); font-style:normal; font-size:12px; }
+
+    /* 퀴즈 공통 */
+    .meta { display:flex; justify-content:space-between; color:var(--muted); font-size:13px; margin-bottom:14px; }
+    .progress { height:6px; border-radius:6px; background:var(--card2); overflow:hidden; margin-bottom:22px; }
+    .progress > div { height:100%; background:linear-gradient(90deg,var(--accent),var(--accent2)); transition:width .3s; }
+
+    .prompt { text-align:center; font-size:20px; line-height:1.5; margin:6px 0 20px; min-height:30px; }
+    .prompt .q { color:var(--accent2); font-weight:700; }
+
+    .hanja { display:flex; justify-content:center; gap:12px; margin:6px 0 4px; }
+    .syl {
+      width:60px; height:72px; border-radius:14px; background:var(--card2);
+      border:1px solid var(--line); display:flex; align-items:center;
+      justify-content:center; font-size:38px; font-weight:700;
+    }
+    .syl.blank { border:2px dashed var(--accent); color:var(--accent); animation:pulse 1.4s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.45} }
+    .reading { display:flex; justify-content:center; gap:12px; margin-bottom:18px; color:var(--muted); font-size:17px; }
+    .reading .cell { width:60px; text-align:center; }
+    .reading .cell.blank { color:var(--accent); font-weight:700; }
+
+    .hint { text-align:center; background:var(--card2); border-radius:12px; padding:12px; margin-bottom:18px; font-size:15px; }
+    .hint b { color:var(--accent2); }
+    .hint-row { text-align:center; margin-bottom:14px; }
+    .hintbtn {
+      background:transparent; border:1px solid var(--line); color:var(--accent2);
+      border-radius:10px; padding:8px 16px; font-size:14px; font-weight:600; cursor:pointer;
+    }
+    .hintbtn:hover { border-color:var(--accent); }
+
+    .speaker { text-align:center; margin:4px 0 22px; }
+    .speaker button {
+      font-size:18px; font-weight:700; padding:16px 26px; border-radius:14px; cursor:pointer;
+      border:none; background:linear-gradient(180deg,var(--accent2),var(--accent)); color:#1f1300;
+    }
+    .speaker .sub { color:var(--muted); font-size:13px; margin-top:10px; }
+
+    form { display:flex; gap:10px; }
+    input[type=text] {
+      flex:1; font-size:22px; text-align:center; padding:12px; border-radius:12px;
+      border:1px solid var(--line); background:#0b1220; color:var(--text); outline:none;
+    }
+    input[type=text]:focus { border-color:var(--accent); }
+    button.primary {
+      font-size:16px; font-weight:700; padding:0 20px; border:none; border-radius:12px;
+      cursor:pointer; background:linear-gradient(180deg,var(--accent2),var(--accent)); color:#1f1300;
+    }
+    button.ghost { background:transparent; color:var(--muted); border:1px solid var(--line); }
+    button:active { transform:translateY(1px); }
+
+    .choices { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .choice {
+      padding:16px; border-radius:14px; border:1px solid var(--line); cursor:pointer;
+      background:var(--card2); color:var(--text); font-size:20px; font-weight:700; text-align:center;
+      transition:.12s;
+    }
+    .choice .rd { display:block; font-size:13px; color:var(--muted); font-weight:500; margin-top:4px; }
+    .choice.hanja-opt { font-size:34px; padding:14px; }
+    .choice:hover:not(:disabled) { border-color:var(--accent); }
+    .choice.correct { border-color:var(--ok); background:#13351f; color:#bbf7d0; }
+    .choice.wrong { border-color:var(--bad); background:#3a1515; color:#fecaca; }
+    .choice:disabled { cursor:default; }
+
+    .feedback { margin-top:18px; text-align:center; font-size:16px; }
+    .feedback.ok { color:var(--ok); }
+    .feedback.bad { color:var(--bad); }
+    .feedback .full { font-size:22px; font-weight:700; color:var(--text); margin-top:6px; }
+    .feedback .desc { color:var(--muted); font-size:14px; margin-top:6px; }
+
+    .row { display:flex; gap:10px; margin-top:18px; }
+    .row button { flex:1; padding:12px; }
+
+    .result { text-align:center; }
+    .result .score { font-size:56px; font-weight:800; color:var(--accent2); }
+    .result .sub { color:var(--muted); margin:4px 0 24px; }
+
+    .footer { text-align:center; color:var(--muted); font-size:12px; margin-top:18px; }
+    .back { background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; }
+
+    /* 학습 모드 플래시카드 */
+    .spk { cursor:pointer; user-select:none; }
+    .spk:hover { color:var(--accent2); }
+    .flash {
+      cursor:pointer; border-radius:14px; padding:20px 8px; margin-bottom:8px;
+      background:var(--card2); border:1px solid var(--line); min-height:220px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px;
+    }
+    .flash:hover { border-color:var(--accent); }
+    .hanja.big { gap:14px; }
+    .hanja.big .syl { width:66px; height:80px; font-size:44px; background:transparent; border-color:var(--line); }
+    .tap { color:var(--muted); font-size:15px; }
+    .kbd {
+      font-size:11px; border:1px solid var(--line); border-radius:5px; padding:1px 6px;
+      margin-left:4px; color:var(--muted);
+    }
+    .study-body { width:100%; }
+    .dokeum {
+      display:flex; flex-wrap:wrap; gap:10px 16px; justify-content:center;
+      font-size:18px; margin-bottom:18px;
+    }
+    .dokeum .du { color:var(--muted); }
+    .dokeum .du b { color:var(--accent2); font-size:21px; margin-left:1px; }
+    .sec {
+      text-align:left; font-size:15px; line-height:1.55; color:var(--text);
+      padding:10px 12px; border-radius:10px; background:#0b1220; margin-bottom:10px;
+    }
+    .sec .lbl {
+      display:inline-block; min-width:42px; margin-right:10px; padding:1px 8px;
+      font-size:12px; font-weight:700; color:#1f1300; border-radius:6px;
+      background:linear-gradient(180deg,var(--accent2),var(--accent));
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useMemo, useRef, useEffect } = React;
+    const DATA = window.IDIOMS || [];
+    const TOTAL = 10;
+
+    const MODES = [
+      { id:"study", ic:"📚", t:"학습 모드 (플래시카드)",
+        d:"한자·독음·뜻·유래를 카드로 학습", study:true },
+      { id:"meaning", ic:"📖", t:"뜻 보고 사자성어 찾기",
+        d:"풀이를 읽고 알맞은 사자성어를 고르거나 입력", formats:["choice","input"] },
+      { id:"audio", ic:"🔊", t:"독음 듣고 사자성어 찾기",
+        d:"독음을 2번 듣고 알맞은 사자성어를 4지선다", formats:["choice"] },
+      { id:"blank", ic:"⬜", t:"빈칸 채우기",
+        d:"빈칸에 들어갈 한자를 고르거나(4지선다) 독음을 입력(주관식)", formats:["choice","input"] },
+    ];
+
+    function shuffle(arr){
+      const a=arr.slice();
+      for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+      return a;
+    }
+    function sampleOthers(pool, exclude, n){
+      return shuffle(pool.filter(x=>x!==exclude)).slice(0,n);
+    }
+
+    function buildQuestions(mode, format, count){
+      const pool = shuffle(DATA).slice(0, count || TOTAL);
+      return pool.map((it)=>{
+        const base = { idiom:it, mode, format };
+        if(mode==="blank"){
+          const pos = Math.floor(Math.random()*4);
+          base.pos = pos;
+          if(format==="choice"){
+            // 4지선다: 빈칸에 들어갈 '한자'를 고름
+            base.answer = it.hanja[pos];
+            const others = [...new Set(DATA.flatMap(x=>x.hanja.split("")))]
+              .filter(c=>c!==base.answer);
+            const distract = shuffle(others).slice(0,3);
+            base.options = shuffle([base.answer, ...distract]);
+          } else {
+            // 주관식 입력: 빈칸의 '독음'을 입력
+            base.answer = it.reading[pos];
+          }
+        } else {
+          // meaning / audio: 정답은 사자성어
+          base.answer = it.hanja;
+          if(format==="choice"){
+            const distract = sampleOthers(DATA, it, 3);
+            base.options = shuffle([it, ...distract]);
+          }
+        }
+        return base;
+      });
+    }
+
+    function speakTwice(text){
+      const synth = window.speechSynthesis;
+      if(!synth){ return false; }
+      synth.cancel();
+      for(let i=0;i<2;i++){
+        const u=new SpeechSynthesisUtterance(text);
+        u.lang="ko-KR"; u.rate=0.8; u.pitch=1;
+        synth.speak(u);
+      }
+      return true;
+    }
+
+    /* ---------- 홈 ---------- */
+    function Home({ onStart, onStartStudy }){
+      const [mode,setMode]=useState(null);
+      const sel = MODES.find(m=>m.id===mode);
+      const [format,setFormat]=useState("choice");
+      const [showReading,setShowReading]=useState(false); // 4지선다 보기에 독음 표시
+      const [count,setCount]=useState(10);                // 학습 모드 카드 수
+
+      if(!mode){
+        return (
+          <div>
+            <div className="modes">
+              {MODES.map(m=>(
+                <button key={m.id} className="mode" onClick={()=>{
+                  setMode(m.id); setFormat(m.formats[0]);
+                }}>
+                  <span className="ic">{m.ic}</span>
+                  <span>
+                    <div className="t">{m.t}</div>
+                    <div className="d">{m.d}</div>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      // 학습 모드: 카드 수(10/20/전체) 선택
+      if(sel.study){
+        const opts=[{v:10,l:"10개"},{v:20,l:"20개"},{v:DATA.length,l:`전체 (${DATA.length}개)`}];
+        return (
+          <div className="card">
+            <button className="back" onClick={()=>setMode(null)}>← 모드 선택으로</button>
+            <h2 style={{textAlign:"center",margin:"10px 0 4px"}}>{sel.ic} {sel.t}</h2>
+            <p style={{textAlign:"center",color:"var(--muted)",marginTop:0}}>{sel.d}</p>
+            <div className="fmt"><span className="label">학습할 카드 수</span></div>
+            <div className="fmt">
+              {opts.map(o=>(
+                <button key={o.v} className={count===o.v?"on":""} onClick={()=>setCount(o.v)}>{o.l}</button>
+              ))}
+            </div>
+            <button className="primary" style={{width:"100%",padding:14,marginTop:18}}
+              onClick={()=>onStartStudy(count)}>학습 시작</button>
+          </div>
+        );
+      }
+
+      return (
+        <div className="card">
+          <button className="back" onClick={()=>setMode(null)}>← 모드 선택으로</button>
+          <h2 style={{textAlign:"center",margin:"10px 0 4px"}}>{sel.ic} {sel.t}</h2>
+          <p style={{textAlign:"center",color:"var(--muted)",marginTop:0}}>{sel.d}</p>
+
+          {sel.formats.length>1 && (
+            <div>
+              <div className="fmt"><span className="label">출제 방식</span></div>
+              <div className="fmt">
+                <button className={format==="choice"?"on":""} onClick={()=>setFormat("choice")}>4지선다</button>
+                <button className={format==="input"?"on":""} onClick={()=>setFormat("input")}>주관식 입력</button>
+              </div>
+            </div>
+          )}
+          {sel.formats.length===1 && (
+            <p style={{textAlign:"center",color:"var(--muted)",fontSize:13}}>출제 방식: 4지선다</p>
+          )}
+
+          {/* 문제 수 선택 */}
+          <div className="fmt"><span className="label">문제 수</span></div>
+          <div className="fmt">
+            {[{v:10,l:"10문제"},{v:20,l:"20문제"},{v:DATA.length,l:`전체 (${DATA.length})`}].map(o=>(
+              <button key={o.v} className={count===o.v?"on":""} onClick={()=>setCount(o.v)}>{o.l}</button>
+            ))}
+          </div>
+
+          {/* 4지선다 보기에 독음 표시 옵션 (한자 보기로 출제되는 모드에서만) */}
+          {((sel.id==="meaning" && format==="choice") || sel.id==="audio") && (
+            <label className="opt">
+              <input type="checkbox" checked={showReading}
+                onChange={(e)=>setShowReading(e.target.checked)} />
+              <span>4지선다 보기에 한글 독음 표시
+                {sel.id==="audio" && <em> (정답이 노출되니 쉬움 모드)</em>}
+              </span>
+            </label>
+          )}
+
+          <button className="primary" style={{width:"100%",padding:14,marginTop:18}}
+            onClick={()=>onStart(mode, sel.formats.length>1?format:sel.formats[0], showReading, count)}>
+            시작하기 ({count}문제)
+          </button>
+        </div>
+      );
+    }
+
+    /* ---------- 문제 본문(모드별) ---------- */
+    function PromptArea({ q, revealed, showHint, onToggleHint }){
+      const it=q.idiom;
+      if(q.mode==="meaning"){
+        return <div className="prompt">다음 뜻을 가진 사자성어는?<br/><span className="q">"{it.desc}"</span></div>;
+      }
+      if(q.mode==="audio"){
+        return <AudioPrompt q={q} />;
+      }
+      // blank
+      const chars=it.hanja.split(""), rd=it.reading.split("");
+      return (
+        <div>
+          <div className="hanja">
+            {chars.map((c,i)=>(
+              <div key={i} className={"syl"+(i===q.pos&&!revealed?" blank":"")}>
+                {i===q.pos&&!revealed?"□":c}
+              </div>
+            ))}
+          </div>
+          <div className="reading">
+            {rd.map((c,i)=>(
+              <div key={i} className={"cell"+(i===q.pos?" blank":"")}>
+                {i===q.pos&&!revealed?"?":c}
+              </div>
+            ))}
+          </div>
+          <div className="hint-row">
+            <button className="hintbtn" onClick={onToggleHint}>💡 힌트 {showHint?"숨기기":"보기"}</button>
+          </div>
+          {showHint && (
+            <div className="hint">힌트 : 빈칸은 <b>'{it.meanings[q.pos]}'</b> (이)라는 뜻의 글자입니다.</div>
+          )}
+        </div>
+      );
+    }
+
+    function AudioPrompt({ q }){
+      const supported = typeof window.speechSynthesis !== "undefined";
+      useEffect(()=>{ if(supported) speakTwice(q.idiom.reading); }, [q]);
+      return (
+        <div className="speaker">
+          <button onClick={()=>speakTwice(q.idiom.reading)}>🔊 독음 다시 듣기</button>
+          <div className="sub">
+            {supported ? "들은 독음에 해당하는 사자성어를 고르세요 (자동 2회 재생)"
+                       : "이 브라우저는 음성을 지원하지 않습니다. 아래 독음을 참고하세요: "+q.idiom.reading}
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- 한 문제 ---------- */
+    function Question({ q, index, total, score, showReading, onAnswer, onNext, onQuit }){
+      const [value,setValue]=useState("");
+      const [picked,setPicked]=useState(null);   // 4지선다 선택값
+      const [result,setResult]=useState(null);   // null | true | false
+      const [showHint,setShowHint]=useState(false); // 빈칸 모드 힌트 표시
+      const inputRef=useRef(null);
+
+      useEffect(()=>{
+        setValue(""); setPicked(null); setResult(null); setShowHint(false);
+        if(q.format==="input" && inputRef.current) inputRef.current.focus();
+      },[q]);
+
+      const it=q.idiom;
+      const isBlank=q.mode==="blank";
+
+      function finish(correct){ setResult(correct); onAnswer(correct); }
+
+      function submitInput(e){
+        e.preventDefault();
+        if(result!==null) return;
+        const v=value.trim();
+        const correct = isBlank ? (v===q.answer)
+                                : (v===it.reading || v===it.hanja);
+        finish(correct);
+      }
+      function pick(opt){
+        if(result!==null) return;
+        const val = isBlank ? opt : opt.hanja;
+        setPicked(val);
+        finish(val===q.answer);
+      }
+
+      const optClass=(val)=>{
+        if(result===null) return "choice";
+        if(val===q.answer) return "choice correct";
+        if(val===picked) return "choice wrong";
+        return "choice";
+      };
+
+      return (
+        <div className="card">
+          <div className="meta"><span>문제 {index+1} / {total}</span><span>점수 {score}</span></div>
+          <div className="progress"><div style={{width:(index/total)*100+"%"}}/></div>
+
+          <PromptArea q={q} revealed={result!==null}
+            showHint={showHint} onToggleHint={()=>setShowHint(h=>!h)} />
+
+          {/* 입력형 */}
+          {q.format==="input" && result===null && (
+            <form onSubmit={submitInput}>
+              <input ref={inputRef} type="text" value={value}
+                onChange={(e)=>setValue(e.target.value)}
+                placeholder={isBlank?"빈칸의 독음 한 글자":"사자성어의 독음 (예: 온고지신)"}
+                maxLength={isBlank?3:8}/>
+              <button type="submit" className="primary">확인</button>
+            </form>
+          )}
+
+          {/* 4지선다 */}
+          {q.format==="choice" && (
+            <div className="choices">
+              {q.options.map((opt,i)=>{
+                if(isBlank){
+                  return (
+                    <button key={i} className={optClass(opt)+" hanja-opt"} disabled={result!==null}
+                      onClick={()=>pick(opt)}>{opt}</button>
+                  );
+                }
+                return (
+                  <button key={i} className={optClass(opt.hanja)} disabled={result!==null}
+                    onClick={()=>pick(opt)}>
+                    {opt.hanja}
+                    {(showReading || result!==null) && <span className="rd">{opt.reading}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {/* 피드백 */}
+          {result!==null && (
+            <div className={"feedback "+(result?"ok":"bad")}>
+              {result ? "✅ 정답입니다!"
+                      : (isBlank
+                          ? `❌ 오답! 정답은 '${q.answer}'${q.format==="choice" ? ` (${it.reading[q.pos]})` : ""}`
+                          : `❌ 오답! 정답은 ${it.hanja} (${it.reading})`)}
+              <div className="full">{it.hanja} ({it.reading})</div>
+              <div className="desc">{it.desc}</div>
+            </div>
+          )}
+
+          <div className="row">
+            <button className="ghost" onClick={onQuit}>그만하기</button>
+            {result!==null && (
+              <button className="primary" onClick={onNext}>
+                {index+1<total?"다음 문제 →":"결과 보기"}
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- 학습 모드 (플래시카드) ---------- */
+    function StudyDeck({ cards, onHome }){
+      const [i,setI]=useState(0);
+      const [flipped,setFlipped]=useState(false);
+      const it=cards[i];
+
+      const go=(d)=>{ setFlipped(false); setI(x=>Math.min(Math.max(x+d,0),cards.length-1)); };
+
+      useEffect(()=>{
+        const onKey=(e)=>{
+          if(e.code==="Space"){ e.preventDefault(); setFlipped(f=>!f); }
+          else if(e.code==="ArrowRight") go(1);
+          else if(e.code==="ArrowLeft") go(-1);
+        };
+        window.addEventListener("keydown",onKey);
+        return ()=>window.removeEventListener("keydown",onKey);
+      },[cards.length]);
+
+      const chars=it.hanja.split(""), rd=it.reading.split("");
+
+      return (
+        <div className="card">
+          <div className="meta">
+            <span>카드 {i+1} / {cards.length}</span>
+            <span className="spk" onClick={()=>speakTwice(it.reading)}>🔊 듣기</span>
+          </div>
+          <div className="progress"><div style={{width:((i+1)/cards.length)*100+"%"}}/></div>
+
+          <div className="flash" onClick={()=>setFlipped(f=>!f)}>
+            <div className="hanja big">
+              {chars.map((c,k)=><div key={k} className="syl">{c}</div>)}
+            </div>
+
+            {!flipped ? (
+              <div className="tap">카드를 눌러 풀이 보기 ▶ <span className="kbd">Space</span></div>
+            ) : (
+              <div className="study-body">
+                <div className="dokeum">
+                  {chars.map((c,k)=>(
+                    <span key={k} className="du">{it.meanings[k]}<b>{rd[k]}</b></span>
+                  ))}
+                </div>
+                <div className="sec"><span className="lbl">직역</span>{it.literal||"—"}</div>
+                <div className="sec"><span className="lbl">의역</span>{it.free||"—"}</div>
+                {it.origin && <div className="sec"><span className="lbl">유래</span>{it.origin}</div>}
+              </div>
+            )}
+          </div>
+
+          <div className="row">
+            <button className="ghost" onClick={()=>go(-1)} disabled={i===0}>← 이전</button>
+            {i+1<cards.length
+              ? <button className="primary" onClick={()=>go(1)}>다음 →</button>
+              : <button className="primary" onClick={onHome}>학습 종료</button>}
+          </div>
+          <button className="back" onClick={onHome}>← 모드 선택</button>
+        </div>
+      );
+    }
+
+    function Result({ score, total, onHome, onRetry }){
+      const pct=total?Math.round(score/total*100):0;
+      const msg = pct===100?"완벽해요! 🏆" : pct>=70?"훌륭합니다! 👏" : pct>=40?"조금만 더! 💪":"다시 도전해봐요! 🔥";
+      return (
+        <div className="card result">
+          <div className="score">{score} / {total}</div>
+          <div className="sub">정답률 {pct}% · {msg}</div>
+          <div className="row">
+            <button className="ghost" onClick={onHome}>모드 선택</button>
+            <button className="primary" onClick={onRetry}>다시 풀기</button>
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- 앱 ---------- */
+    function App(){
+      const [screen,setScreen]=useState("home"); // home | quiz | result
+      const [mode,setMode]=useState(null);
+      const [format,setFormat]=useState("choice");
+      const [showReading,setShowReading]=useState(false);
+      const [qcount,setQcount]=useState(TOTAL);
+      const [questions,setQuestions]=useState([]);
+      const [cards,setCards]=useState([]);
+      const [index,setIndex]=useState(0);
+      const [score,setScore]=useState(0);
+      const [answered,setAnswered]=useState(0);
+
+      function start(m,f,sr,count){
+        const n=count||TOTAL;
+        setMode(m); setFormat(f); setShowReading(!!sr); setQcount(n);
+        setQuestions(buildQuestions(m,f,n));
+        setIndex(0); setScore(0); setAnswered(0);
+        setScreen("quiz");
+      }
+      function startStudy(count){
+        setMode("study");
+        setCards(shuffle(DATA).slice(0, count));
+        setScreen("study");
+      }
+      function retry(){ start(mode,format,showReading,qcount); }
+      function goHome(){ window.speechSynthesis && window.speechSynthesis.cancel(); setScreen("home"); }
+
+      function onAnswer(correct){ setAnswered(a=>a+1); if(correct) setScore(s=>s+1); }
+      function onNext(){
+        if(index+1<questions.length) setIndex(i=>i+1);
+        else { window.speechSynthesis && window.speechSynthesis.cancel(); setScreen("result"); }
+      }
+      function quit(){ window.speechSynthesis && window.speechSynthesis.cancel(); setScreen("result"); }
+
+      if(!DATA.length){
+        return <div className="card">데이터를 불러오지 못했습니다. <code>idioms.js</code>를 확인하세요.</div>;
+      }
+
+      const modeLabel = MODES.find(m=>m.id===mode);
+
+      return (
+        <div className="app">
+          <div className="title">
+            <h1>사자성어 퀴즈</h1>
+            <p>{screen==="home" ? "퀴즈 · 학습 모드를 선택하세요"
+                : screen==="study" ? `${modeLabel.ic} ${modeLabel.t}`
+                : modeLabel ? `${modeLabel.ic} ${modeLabel.t} · ${format==="choice"?"4지선다":"주관식"}`
+                : ""}</p>
+          </div>
+
+          {screen==="home" && <Home onStart={start} onStartStudy={startStudy} />}
+
+          {screen==="study" && <StudyDeck cards={cards} onHome={goHome} />}
+
+          {screen==="quiz" && (
+            <Question
+              q={questions[index]} index={index} total={questions.length} score={score}
+              showReading={showReading}
+              onAnswer={onAnswer} onNext={onNext} onQuit={quit} />
+          )}
+
+          {screen==="result" && (
+            <Result score={score} total={answered} onHome={goHome} onRetry={retry} />
+          )}
+
+          <div className="footer">총 {DATA.length}개 사자성어</div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
