@@ -9,7 +9,8 @@
   <script src="./vendor/react.production.min.js"></script>
   <script src="./vendor/react-dom.production.min.js"></script>
   <script src="./vendor/babel.min.js"></script>
-  <script src="./idioms.js?v=2"></script>
+  <script src="./idioms.js?v=3"></script>
+  <script src="./proverbs.js?v=1"></script>
 
   <style>
     :root {
@@ -140,6 +141,59 @@
     .footer { text-align:center; color:var(--muted); font-size:12px; margin-top:18px; }
     .back { background:none; border:none; color:var(--muted); cursor:pointer; font-size:13px; }
 
+    /* DB 관리 */
+    .admin-open {
+      width:100%; margin-top:16px; padding:14px; border-radius:14px; cursor:pointer;
+      background:var(--card); border:1px dashed var(--line); color:var(--text);
+      font-size:14px; font-weight:600;
+    }
+    .admin-open:hover { border-color:var(--accent); color:var(--accent2); }
+    .admin-bar { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
+    .admin-bar button { padding:9px 12px; font-size:13px; border-radius:10px; }
+    .admin-bar .primary { color:#1f1300; }
+    .admin-search {
+      width:100%; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+      background:#0b1220; color:var(--text); outline:none; font-size:14px; margin-bottom:8px;
+    }
+    .admin-search:focus { border-color:var(--accent); }
+    .admin-count { color:var(--muted); font-size:12px; margin-bottom:10px; }
+    .admin-list { max-height:52vh; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
+    .admin-row {
+      display:flex; align-items:center; gap:10px; padding:10px 12px;
+      background:var(--card2); border:1px solid var(--line); border-radius:12px;
+    }
+    .admin-info { flex:1; min-width:0; }
+    .ar-h { font-size:18px; font-weight:700; }
+    .ar-h .ar-r { font-size:13px; color:var(--muted); font-weight:500; }
+    .ar-d { font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .admin-actions { display:flex; gap:6px; flex-shrink:0; }
+    .mini {
+      padding:7px 12px; font-size:13px; border-radius:9px; cursor:pointer;
+      background:var(--card); border:1px solid var(--line); color:var(--text); font-weight:600;
+    }
+    .mini:hover { border-color:var(--accent); }
+    .mini.danger { color:#fca5a5; }
+    .mini.danger:hover { border-color:var(--bad); }
+
+    /* 추가/수정 폼 */
+    .idiom-form { display:flex; flex-direction:column; gap:12px; }
+    .idiom-form label { display:flex; flex-direction:column; gap:6px; font-size:13px; color:var(--muted); }
+    .idiom-form input, .idiom-form textarea {
+      font-size:16px; padding:10px 12px; border-radius:10px; border:1px solid var(--line);
+      background:#0b1220; color:var(--text); outline:none; resize:vertical; font-family:inherit;
+    }
+    .idiom-form input:focus, .idiom-form textarea:focus { border-color:var(--accent); }
+    .field-label { font-size:13px; color:var(--muted); margin-bottom:-4px; }
+    .mean-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .mean-cell { flex-direction:row !important; align-items:center; gap:8px !important; min-width:0; }
+    .mc-char {
+      width:46px; flex-shrink:0; text-align:center; font-size:22px; font-weight:700; color:var(--text);
+    }
+    .mc-char em { display:block; font-size:12px; font-style:normal; color:var(--accent2); }
+    .mean-cell input { flex:1; min-width:0; }
+    .mean-hint { color:var(--muted); font-size:13px; }
+    .form-err { color:#fca5a5; font-size:13px; text-align:center; }
+
     /* 학습 모드 플래시카드 */
     .spk { cursor:pointer; user-select:none; }
     .spk:hover { color:var(--accent2); }
@@ -151,6 +205,14 @@
     .flash:hover { border-color:var(--accent); }
     .hanja.big { gap:14px; }
     .hanja.big .syl { width:66px; height:80px; font-size:44px; background:transparent; border-color:var(--line); }
+    .prov-hanja {
+      font-size:26px; font-weight:700; line-height:1.55; text-align:center;
+      word-break:keep-all; padding:0 6px;
+    }
+    .prov-reading {
+      text-align:center; color:var(--accent2); font-size:16px; font-weight:600;
+      margin-bottom:14px; word-break:keep-all;
+    }
     .tap { color:var(--muted); font-size:15px; }
     .kbd {
       font-size:11px; border:1px solid var(--line); border-radius:5px; padding:1px 6px;
@@ -179,7 +241,19 @@
 
   <script type="text/babel">
     const { useState, useMemo, useRef, useEffect } = React;
-    const DATA = window.IDIOMS || [];
+    const BUNDLED = window.IDIOMS || [];
+    const PROVERBS = window.PROVERBS || [];
+    const LS_KEY = "saja_idioms_v1";
+    function loadIdioms(){
+      try {
+        const s = localStorage.getItem(LS_KEY);
+        if(s){ const a = JSON.parse(s); if(Array.isArray(a) && a.length) return a; }
+      } catch(e){}
+      return BUNDLED.slice();
+    }
+    function saveIdioms(list){
+      try { localStorage.setItem(LS_KEY, JSON.stringify(list)); } catch(e){}
+    }
     const TOTAL = 10;
 
     const MODES = [
@@ -191,6 +265,8 @@
         d:"독음을 2번 듣고 알맞은 사자성어를 4지선다", formats:["choice"] },
       { id:"blank", ic:"⬜", t:"빈칸 채우기",
         d:"빈칸에 들어갈 한자를 고르거나(4지선다) 독음을 입력(주관식)", formats:["choice","input"] },
+      { id:"proverbs", ic:"📜", t:"명언·한문 (학습)",
+        d:"긴 한문 명언·속담·일화를 카드로 학습", proverbs:true },
     ];
 
     function shuffle(arr){
@@ -202,17 +278,18 @@
       return shuffle(pool.filter(x=>x!==exclude)).slice(0,n);
     }
 
-    function buildQuestions(mode, format, count){
-      const pool = shuffle(DATA).slice(0, count || TOTAL);
+    function buildQuestions(mode, format, count, list, all){
+      all = all || list;   // 오답 보기(distractor) 출처 — 기본은 출제 대상과 동일
+      const pool = shuffle(list).slice(0, count || TOTAL);
       return pool.map((it)=>{
         const base = { idiom:it, mode, format };
         if(mode==="blank"){
-          const pos = Math.floor(Math.random()*4);
+          const pos = Math.floor(Math.random()*it.reading.length);
           base.pos = pos;
           if(format==="choice"){
             // 4지선다: 빈칸에 들어갈 '한자'를 고름
             base.answer = it.hanja[pos];
-            const others = [...new Set(DATA.flatMap(x=>x.hanja.split("")))]
+            const others = [...new Set(all.flatMap(x=>x.hanja.split("")))]
               .filter(c=>c!==base.answer);
             const distract = shuffle(others).slice(0,3);
             base.options = shuffle([base.answer, ...distract]);
@@ -224,7 +301,7 @@
           // meaning / audio: 정답은 사자성어
           base.answer = it.hanja;
           if(format==="choice"){
-            const distract = sampleOthers(DATA, it, 3);
+            const distract = sampleOthers(all, it, 3);
             base.options = shuffle([it, ...distract]);
           }
         }
@@ -245,7 +322,7 @@
     }
 
     /* ---------- 홈 ---------- */
-    function Home({ onStart, onStartStudy }){
+    function Home({ onStart, onStartStudy, onStartProverbs, idioms, onOpenAdmin }){
       const [mode,setMode]=useState(null);
       const sel = MODES.find(m=>m.id===mode);
       const [format,setFormat]=useState("choice");
@@ -258,7 +335,8 @@
             <div className="modes">
               {MODES.map(m=>(
                 <button key={m.id} className="mode" onClick={()=>{
-                  setMode(m.id); setFormat(m.formats[0]);
+                  if(m.proverbs){ onStartProverbs(); return; }
+                  setMode(m.id); if(!m.study) setFormat(m.formats[0]);
                 }}>
                   <span className="ic">{m.ic}</span>
                   <span>
@@ -268,13 +346,16 @@
                 </button>
               ))}
             </div>
+            <button className="admin-open" onClick={onOpenAdmin}>
+              🗂️ 사자성어 DB 관리 ({idioms.length}개)
+            </button>
           </div>
         );
       }
 
       // 학습 모드: 카드 수(10/20/전체) 선택
       if(sel.study){
-        const opts=[{v:10,l:"10개"},{v:20,l:"20개"},{v:DATA.length,l:`전체 (${DATA.length}개)`}];
+        const opts=[{v:10,l:"10개"},{v:20,l:"20개"},{v:idioms.length,l:`전체 (${idioms.length}개)`}];
         return (
           <div className="card">
             <button className="back" onClick={()=>setMode(null)}>← 모드 선택으로</button>
@@ -314,7 +395,7 @@
           {/* 문제 수 선택 */}
           <div className="fmt"><span className="label">문제 수</span></div>
           <div className="fmt">
-            {[{v:10,l:"10문제"},{v:20,l:"20문제"},{v:DATA.length,l:`전체 (${DATA.length})`}].map(o=>(
+            {[{v:10,l:"10문제"},{v:20,l:"20문제"},{v:idioms.length,l:`전체 (${idioms.length})`}].map(o=>(
               <button key={o.v} className={count===o.v?"on":""} onClick={()=>setCount(o.v)}>{o.l}</button>
             ))}
           </div>
@@ -553,13 +634,217 @@
       );
     }
 
-    function Result({ score, total, onHome, onRetry }){
+    /* ---------- 명언·한문 학습 카드 ---------- */
+    function ProverbDeck({ cards, onHome }){
+      const [i,setI]=useState(0);
+      const [flipped,setFlipped]=useState(false);
+      const it=cards[i];
+      const go=(d)=>{ setFlipped(false); setI(x=>Math.min(Math.max(x+d,0),cards.length-1)); };
+
+      useEffect(()=>{
+        const onKey=(e)=>{
+          if(e.code==="Space"){ e.preventDefault(); setFlipped(f=>!f); }
+          else if(e.code==="ArrowRight") go(1);
+          else if(e.code==="ArrowLeft") go(-1);
+        };
+        window.addEventListener("keydown",onKey);
+        return ()=>window.removeEventListener("keydown",onKey);
+      },[cards.length]);
+
+      return (
+        <div className="card">
+          <div className="meta">
+            <span>명언 {i+1} / {cards.length}</span>
+            <span className="spk" onClick={()=>speakTwice(it.reading)}>🔊 듣기</span>
+          </div>
+          <div className="progress"><div style={{width:((i+1)/cards.length)*100+"%"}}/></div>
+
+          <div className="flash" onClick={()=>setFlipped(f=>!f)}>
+            <div className="prov-hanja">{it.hanja}</div>
+            {!flipped ? (
+              <div className="tap">카드를 눌러 풀이 보기 ▶ <span className="kbd">Space</span></div>
+            ) : (
+              <div className="study-body">
+                <div className="prov-reading">{it.reading}</div>
+                {it.literal && <div className="sec"><span className="lbl">직역</span>{it.literal}</div>}
+                <div className="sec"><span className="lbl">의역</span>{it.free}</div>
+                {it.origin && <div className="sec"><span className="lbl">유래</span>{it.origin}</div>}
+              </div>
+            )}
+          </div>
+
+          <div className="row">
+            <button className="ghost" onClick={()=>go(-1)} disabled={i===0}>← 이전</button>
+            {i+1<cards.length
+              ? <button className="primary" onClick={()=>go(1)}>다음 →</button>
+              : <button className="primary" onClick={onHome}>학습 종료</button>}
+          </div>
+          <button className="back" onClick={onHome}>← 모드 선택</button>
+        </div>
+      );
+    }
+
+    /* ---------- DB 관리 (목록 + 추가/수정/삭제) ---------- */
+    function IdiomForm({ initial, onSave, onCancel, isNew }){
+      const [hanja,setHanja]=useState(initial?initial.hanja:"");
+      const [reading,setReading]=useState(initial?initial.reading:"");
+      const [meanings,setMeanings]=useState(initial?initial.meanings.slice():[]);
+      const [literal,setLiteral]=useState(initial?(initial.literal||""):"");
+      const [free,setFree]=useState(initial?(initial.free||""):"");
+      const [origin,setOrigin]=useState(initial?(initial.origin||""):"");
+      const [err,setErr]=useState("");
+
+      const chars=[...hanja];
+      // 한자 글자 수에 맞춰 뜻 입력칸 동기화
+      useEffect(()=>{
+        setMeanings(m=>chars.map((_,i)=>m[i]||""));
+      },[hanja]);
+
+      function submit(e){
+        e.preventDefault();
+        const h=hanja.trim(), r=reading.trim();
+        const ch=[...h];
+        if(!ch.length) return setErr("한자를 입력하세요.");
+        if([...r].length!==ch.length) return setErr(`독음은 한자와 같은 ${ch.length}글자여야 합니다.`);
+        const mm=ch.map((_,i)=>(meanings[i]||"").trim());
+        if(mm.some(x=>!x)) return setErr("각 글자의 뜻을 모두 입력하세요.");
+        if(!free.trim()) return setErr("뜻(의역)을 입력하세요.");
+        onSave({ hanja:h, reading:r, meanings:mm,
+          literal:literal.trim(), free:free.trim(), desc:free.trim(), origin:origin.trim() });
+      }
+
+      return (
+        <div className="card">
+          <h2 style={{textAlign:"center",margin:"4px 0 16px"}}>{isNew?"➕ 새 사자성어":"✏️ 사자성어 수정"}</h2>
+          <form className="idiom-form" onSubmit={submit}>
+            <label>한자
+              <input value={hanja} onChange={e=>setHanja(e.target.value)} placeholder="예: 溫故知新" />
+            </label>
+            <label>독음
+              <input value={reading} onChange={e=>setReading(e.target.value)} placeholder="예: 온고지신" />
+            </label>
+            <div className="field-label">글자별 뜻 ({chars.length}자)</div>
+            <div className="mean-grid">
+              {chars.length===0 && <div className="mean-hint">한자를 먼저 입력하세요</div>}
+              {chars.map((c,i)=>(
+                <label key={i} className="mean-cell">
+                  <span className="mc-char">{c}<em>{reading[i]||"?"}</em></span>
+                  <input value={meanings[i]||""} placeholder="뜻"
+                    onChange={e=>setMeanings(m=>{const n=m.slice();n[i]=e.target.value;return n;})} />
+                </label>
+              ))}
+            </div>
+            <label>직역
+              <input value={literal} onChange={e=>setLiteral(e.target.value)} placeholder="글자 그대로의 뜻 (선택)" />
+            </label>
+            <label>의역 (뜻)
+              <textarea value={free} onChange={e=>setFree(e.target.value)} rows={2} placeholder="실제 의미" />
+            </label>
+            <label>유래
+              <textarea value={origin} onChange={e=>setOrigin(e.target.value)} rows={2} placeholder="유래/고사 (선택)" />
+            </label>
+            {err && <div className="form-err">⚠ {err}</div>}
+            <div className="row">
+              <button type="button" className="ghost" onClick={onCancel}>취소</button>
+              <button type="submit" className="primary">저장</button>
+            </div>
+          </form>
+        </div>
+      );
+    }
+
+    function Admin({ idioms, onChange, onReset, onHome }){
+      const [editing,setEditing]=useState(null); // null | index | 'new'
+      const [q,setQ]=useState("");
+      const fileRef=useRef(null);
+
+      function removeAt(i){
+        const it=idioms[i];
+        if(!window.confirm(`'${it.hanja} (${it.reading})' 항목을 삭제할까요?`)) return;
+        const next=idioms.slice(); next.splice(i,1); onChange(next);
+      }
+      function saveItem(item){
+        let next;
+        if(editing==="new") next=[...idioms, item];
+        else { next=idioms.slice(); next[editing]=item; }
+        onChange(next); setEditing(null);
+      }
+      function exportJs(){
+        const text="// 사자성어 데이터\nwindow.IDIOMS = "+JSON.stringify(idioms,null,2)+";\n";
+        const blob=new Blob([text],{type:"text/javascript;charset=utf-8"});
+        const url=URL.createObjectURL(blob);
+        const a=document.createElement("a"); a.href=url; a.download="idioms.js"; a.click();
+        URL.revokeObjectURL(url);
+      }
+      function importFile(e){
+        const f=e.target.files[0]; if(!f) return;
+        const rd=new FileReader();
+        rd.onload=()=>{
+          try{
+            let t=String(rd.result), arr;
+            try{ arr=JSON.parse(t); }
+            catch(_){ const s=t.indexOf("["), en=t.lastIndexOf("]"); arr=JSON.parse(t.slice(s,en+1)); }
+            if(!Array.isArray(arr)||!arr.length) throw new Error("올바른 목록이 아닙니다");
+            onChange(arr); alert(`${arr.length}개 항목을 불러왔습니다.`);
+          }catch(err){ alert("가져오기 실패: "+err.message); }
+        };
+        rd.readAsText(f); e.target.value="";
+      }
+
+      if(editing!==null){
+        return <IdiomForm isNew={editing==="new"}
+          initial={editing==="new"?null:idioms[editing]}
+          onSave={saveItem} onCancel={()=>setEditing(null)} />;
+      }
+
+      const kw=q.trim();
+      const rows=idioms.map((it,i)=>({it,i}))
+        .filter(({it})=>!kw || it.hanja.includes(kw) || it.reading.includes(kw) || (it.free||"").includes(kw));
+
+      return (
+        <div className="card admin">
+          <div className="admin-bar">
+            <button className="primary" onClick={()=>setEditing("new")}>➕ 새 항목</button>
+            <button className="ghost" onClick={exportJs}>⬇️ 내보내기</button>
+            <button className="ghost" onClick={()=>fileRef.current.click()}>⬆️ 가져오기</button>
+            <button className="ghost" onClick={()=>{ if(window.confirm("기본 데이터로 되돌릴까요? 수정 내용이 사라집니다.")) onReset(); }}>↺ 기본값</button>
+            <input ref={fileRef} type="file" accept=".js,.json,application/json,text/javascript"
+              style={{display:"none"}} onChange={importFile} />
+          </div>
+          <input className="admin-search" value={q} onChange={e=>setQ(e.target.value)}
+            placeholder="🔍 한자·독음·뜻 검색" />
+          <div className="admin-count">{kw?`${rows.length} / `:""}{idioms.length}개 · 변경 시 자동 저장(이 브라우저)</div>
+          <div className="admin-list">
+            {rows.map(({it,i})=>(
+              <div className="admin-row" key={i}>
+                <div className="admin-info">
+                  <div className="ar-h">{it.hanja} <span className="ar-r">({it.reading})</span></div>
+                  <div className="ar-d">{it.free||it.desc||""}</div>
+                </div>
+                <div className="admin-actions">
+                  <button className="mini" onClick={()=>setEditing(i)}>수정</button>
+                  <button className="mini danger" onClick={()=>removeAt(i)}>삭제</button>
+                </div>
+              </div>
+            ))}
+            {rows.length===0 && <div className="mean-hint" style={{textAlign:"center",padding:20}}>결과 없음</div>}
+          </div>
+          <button className="back" onClick={onHome}>← 모드 선택</button>
+        </div>
+      );
+    }
+
+    function Result({ score, total, wrongCount, onHome, onRetry, onRetryWrong }){
       const pct=total?Math.round(score/total*100):0;
       const msg = pct===100?"완벽해요! 🏆" : pct>=70?"훌륭합니다! 👏" : pct>=40?"조금만 더! 💪":"다시 도전해봐요! 🔥";
       return (
         <div className="card result">
           <div className="score">{score} / {total}</div>
           <div className="sub">정답률 {pct}% · {msg}</div>
+          {wrongCount>0 && (
+            <button className="primary" style={{width:"100%",padding:14,marginBottom:10}}
+              onClick={onRetryWrong}>❌ 틀린 문제만 다시 풀기 ({wrongCount}개)</button>
+          )}
           <div className="row">
             <button className="ghost" onClick={onHome}>모드 선택</button>
             <button className="primary" onClick={onRetry}>다시 풀기</button>
@@ -570,7 +855,8 @@
 
     /* ---------- 앱 ---------- */
     function App(){
-      const [screen,setScreen]=useState("home"); // home | quiz | result
+      const [screen,setScreen]=useState("home"); // home | quiz | result | study | admin
+      const [idioms,setIdioms]=useState(loadIdioms);
       const [mode,setMode]=useState(null);
       const [format,setFormat]=useState("choice");
       const [showReading,setShowReading]=useState(false);
@@ -580,32 +866,54 @@
       const [index,setIndex]=useState(0);
       const [score,setScore]=useState(0);
       const [answered,setAnswered]=useState(0);
+      const [wrong,setWrong]=useState([]);   // 틀린 사자성어 모음
+
+      function changeIdioms(next){ setIdioms(next); saveIdioms(next); }
+      function resetIdioms(){
+        try{ localStorage.removeItem(LS_KEY); }catch(e){}
+        setIdioms(BUNDLED.slice());
+      }
 
       function start(m,f,sr,count){
+        if(!idioms.length){ alert("사자성어가 없습니다. DB 관리에서 먼저 추가하세요."); return; }
         const n=count||TOTAL;
         setMode(m); setFormat(f); setShowReading(!!sr); setQcount(n);
-        setQuestions(buildQuestions(m,f,n));
-        setIndex(0); setScore(0); setAnswered(0);
+        setQuestions(buildQuestions(m,f,n,idioms));
+        setIndex(0); setScore(0); setAnswered(0); setWrong([]);
+        setScreen("quiz");
+      }
+      function retryWrong(){
+        if(!wrong.length) return;
+        const list=wrong.slice();
+        setQuestions(buildQuestions(mode, format, list.length, list, idioms));
+        setIndex(0); setScore(0); setAnswered(0); setWrong([]);
         setScreen("quiz");
       }
       function startStudy(count){
+        if(!idioms.length){ alert("사자성어가 없습니다. DB 관리에서 먼저 추가하세요."); return; }
         setMode("study");
-        setCards(shuffle(DATA).slice(0, count));
+        setCards(shuffle(idioms).slice(0, count));
         setScreen("study");
+      }
+      function startProverbs(){
+        if(!PROVERBS.length){ alert("명언 데이터가 없습니다."); return; }
+        setMode("proverbs");
+        setCards(PROVERBS.slice());
+        setScreen("proverbs");
       }
       function retry(){ start(mode,format,showReading,qcount); }
       function goHome(){ window.speechSynthesis && window.speechSynthesis.cancel(); setScreen("home"); }
 
-      function onAnswer(correct){ setAnswered(a=>a+1); if(correct) setScore(s=>s+1); }
+      function onAnswer(correct){
+        setAnswered(a=>a+1);
+        if(correct) setScore(s=>s+1);
+        else { const it=questions[index] && questions[index].idiom; if(it) setWrong(w=>[...w, it]); }
+      }
       function onNext(){
         if(index+1<questions.length) setIndex(i=>i+1);
         else { window.speechSynthesis && window.speechSynthesis.cancel(); setScreen("result"); }
       }
       function quit(){ window.speechSynthesis && window.speechSynthesis.cancel(); setScreen("result"); }
-
-      if(!DATA.length){
-        return <div className="card">데이터를 불러오지 못했습니다. <code>idioms.js</code>를 확인하세요.</div>;
-      }
 
       const modeLabel = MODES.find(m=>m.id===mode);
 
@@ -614,12 +922,22 @@
           <div className="title">
             <h1>사자성어 퀴즈</h1>
             <p>{screen==="home" ? "퀴즈 · 학습 모드를 선택하세요"
-                : screen==="study" ? `${modeLabel.ic} ${modeLabel.t}`
+                : screen==="admin" ? "🗂️ 사자성어 DB 관리"
+                : (screen==="study" || screen==="proverbs") ? `${modeLabel.ic} ${modeLabel.t}`
                 : modeLabel ? `${modeLabel.ic} ${modeLabel.t} · ${format==="choice"?"4지선다":"주관식"}`
                 : ""}</p>
           </div>
 
-          {screen==="home" && <Home onStart={start} onStartStudy={startStudy} />}
+          {screen==="home" && (
+            <Home onStart={start} onStartStudy={startStudy} onStartProverbs={startProverbs}
+              idioms={idioms} onOpenAdmin={()=>setScreen("admin")} />
+          )}
+
+          {screen==="proverbs" && <ProverbDeck cards={cards} onHome={goHome} />}
+
+          {screen==="admin" && (
+            <Admin idioms={idioms} onChange={changeIdioms} onReset={resetIdioms} onHome={goHome} />
+          )}
 
           {screen==="study" && <StudyDeck cards={cards} onHome={goHome} />}
 
@@ -631,10 +949,11 @@
           )}
 
           {screen==="result" && (
-            <Result score={score} total={answered} onHome={goHome} onRetry={retry} />
+            <Result score={score} total={answered} wrongCount={wrong.length}
+              onHome={goHome} onRetry={retry} onRetryWrong={retryWrong} />
           )}
 
-          <div className="footer">총 {DATA.length}개 사자성어</div>
+          <div className="footer">총 {idioms.length}개 사자성어</div>
         </div>
       );
     }
