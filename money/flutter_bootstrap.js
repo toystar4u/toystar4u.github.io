@@ -47,6 +47,6 @@ _flutter.loader.load({
     hostElement: document.querySelector('#flutter-host'),
   },
   serviceWorkerSettings: {
-    serviceWorkerVersion: "2393750336"
+    serviceWorkerVersion: "2910981862"
   }
 });
