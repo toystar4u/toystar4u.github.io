@@ -125,14 +125,44 @@
       // treat a clearly keyboard-sized difference as a keyboard.
       var kMinKeyboardHeight = 120;
 
+      // The keyboard can only be up while something is focused. Measuring is
+      // not enough on its own: when Flutter tears down the screen that owned
+      // the focused input -- which is exactly what logging in does -- iOS
+      // dismisses the keyboard without reliably firing a viewport resize, and
+      // the inset stays behind. The app then renders into half the screen
+      // until a reload.
+      function keyboardPossible() {
+        var el = document.activeElement;
+        if (!el || el === document.body) { return false; }
+        var tag = el.tagName;
+        return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+      }
+
       function apply() {
-        var covered = window.innerHeight - viewport.height - viewport.offsetTop;
-        var inset = covered > kMinKeyboardHeight ? Math.round(covered) : 0;
+        var inset = 0;
+        if (keyboardPossible()) {
+          var covered = window.innerHeight - viewport.height - viewport.offsetTop;
+          if (covered > kMinKeyboardHeight) { inset = Math.round(covered); }
+        }
         document.documentElement.style.setProperty('--keyboard-inset', inset + 'px');
+      }
+
+      // Focus moves before the viewport settles, so re-measure on the next
+      // frame as well as immediately.
+      function applySoon() {
+        apply();
+        requestAnimationFrame(apply);
+        setTimeout(apply, 250);
       }
 
       viewport.addEventListener('resize', apply);
       viewport.addEventListener('scroll', apply);
+      // The listeners that make a stale inset impossible: whatever dismissed
+      // the keyboard, focus left the field.
+      document.addEventListener('focusout', applySoon, true);
+      document.addEventListener('focusin', applySoon, true);
+      window.addEventListener('orientationchange', applySoon);
+      window.addEventListener('pageshow', applySoon);
       apply();
     })();
   </script>
@@ -196,7 +226,7 @@ _flutter.loader.load({
     hostElement: document.querySelector('#flutter-host'),
   },
   serviceWorkerSettings: {
-    serviceWorkerVersion: "3847908598"
+    serviceWorkerVersion: "1719155716"
   }
 });
 
