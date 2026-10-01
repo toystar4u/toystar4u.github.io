@@ -18,14 +18,24 @@
   'use strict';
 
   function patch() {
-    document.querySelectorAll('form.transparentTextEditing input')
-      .forEach(function (input) {
-        if (input === document.activeElement) return;
-        if (input.type === 'submit') return;
-        var r = input.getBoundingClientRect();
-        if (r.width > 0 && r.height > 0) return;
-        input.style.setProperty('width', '1px', 'important');
-        input.style.setProperty('height', '1px', 'important');
+    document.querySelectorAll('form.transparentTextEditing').forEach(
+      function (form) {
+        // 칸을 담은 폼 자체가 0x0 이다. 브라우저가 폼 단위로 "채울 만한
+        // 양식인가" 를 따진다면 칸만 키워서는 소용이 없다.
+        var fr = form.getBoundingClientRect();
+        if (fr.width <= 0 || fr.height <= 0) {
+          form.style.setProperty('width', '1px', 'important');
+          form.style.setProperty('height', '1px', 'important');
+        }
+
+        form.querySelectorAll('input').forEach(function (input) {
+          if (input === document.activeElement) return;
+          if (input.type === 'submit') return;
+          var r = input.getBoundingClientRect();
+          if (r.width > 0 && r.height > 0) return;
+          input.style.setProperty('width', '1px', 'important');
+          input.style.setProperty('height', '1px', 'important');
+        });
       });
   }
 
