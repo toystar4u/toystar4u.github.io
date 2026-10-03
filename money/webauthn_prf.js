@@ -37,6 +37,16 @@
     return crypto.getRandomValues(new Uint8Array(32));
   }
 
+  // 쉼표로 이어 붙인 base64url id 목록을 WebAuthn 서술자 배열로 바꾼다.
+  // base64url 알파벳에 쉼표가 없으므로 이 구분자는 안전하다.
+  function toDescriptors(csv) {
+    if (!csv) return [];
+    return csv.split(',').filter(function (s) { return s.length > 0; })
+        .map(function (id) {
+          return { type: 'public-key', id: b64urlToBytes(id) };
+        });
+  }
+
   /// 이 브라우저에서 플랫폼 인증기(Face ID / 지문)를 쓸 수 있는지.
   ///
   /// PRF 지원 여부는 실제로 등록해 보기 전에는 알 수 없다. 그래서 여기서는
@@ -57,7 +67,12 @@
   };
 
   /// 패스키를 만들고 PRF 값을 받아 온다.
-  window.scPrfRegister = async function (userIdB64, userName, saltB64) {
+  ///
+  /// `excludeIdsCsv` 는 이미 등록해 둔 자격증명들이다. 같은 인증기에 두 번
+  /// 만드는 것을 막는다 — 특히 iCloud 키체인으로 **동기화된 패스키**가 이미
+  /// 이 기기에 와 있는 경우가 그렇다. 그때는 등록이 필요 없고 이미 열린다.
+  window.scPrfRegister = async function (
+      userIdB64, userName, saltB64, excludeIdsCsv) {
     try {
       const salt = b64urlToBytes(saltB64);
       const cred = await navigator.credentials.create({
@@ -79,6 +94,7 @@
             userVerification: 'required',
           },
           timeout: 120000,
+          excludeCredentials: toDescriptors(excludeIdsCsv),
           // eval 을 같이 보내면 만드는 김에 PRF 값까지 주는 브라우저가 있다.
           // 그러면 Face ID 를 한 번만 묻는다. 안 주면 아래에서 한 번 더 묻는다.
           extensions: { prf: { eval: { first: salt } } },
@@ -115,15 +131,23 @@
   };
 
   /// 등록해 둔 패스키로 PRF 값을 다시 받아 온다. 여기서 Face ID 가 뜬다.
-  window.scPrfAuthenticate = async function (credentialIdB64, saltB64) {
+  ///
+  /// `credentialIdsCsv` 에는 **등록된 기기 전부**를 넣는다. 어느 기기에서
+  /// 부르는지 미리 알 수 없으므로, 인증기가 자기가 가진 것으로 응답하게
+  /// 두고 **응답에 담긴 id 로 어느 기기였는지 알아낸다.**
+  ///
+  /// 소금은 하나뿐이다. PRF 의 `eval` 은 골라진 자격증명이 무엇이든 같은
+  /// 소금을 먹이므로 그래도 된다. 출력은 인증기 비밀로 갈리기 때문에 기기마다
+  /// 다른 값이 나온다.
+  window.scPrfAuthenticate = async function (credentialIdsCsv, saltB64) {
     try {
+      const allow = toDescriptors(credentialIdsCsv);
+      if (allow.length === 0) return fail('등록된 기기가 없습니다.');
+
       const assertion = await navigator.credentials.get({
         publicKey: {
           challenge: randomChallenge(),
-          allowCredentials: [{
-            type: 'public-key',
-            id: b64urlToBytes(credentialIdB64),
-          }],
+          allowCredentials: allow,
           userVerification: 'required',
           timeout: 120000,
           extensions: { prf: { eval: { first: b64urlToBytes(saltB64) } } },
@@ -137,6 +161,7 @@
       }
       return JSON.stringify({
         ok: true,
+        credentialId: bytesToB64url(assertion.rawId),
         prf: bytesToB64url(ext.prf.results.first),
       });
     } catch (e) {
@@ -147,7 +172,11 @@
   function describe(e) {
     const name = e && e.name ? e.name : '';
     if (name === 'NotAllowedError') return '인증이 취소되었거나 시간이 지났습니다.';
-    if (name === 'InvalidStateError') return '이 기기에는 이미 등록되어 있습니다.';
+    // excludeCredentials 에 걸렸다는 뜻이다. 오류가 아니라 "이미 된다" 다.
+    // iCloud 키체인으로 동기화된 패스키가 와 있는 경우가 대표적이다.
+    if (name === 'InvalidStateError') {
+      return '이 기기는 이미 등록된 기기로 열 수 있습니다. 바로 Face ID 로 열어 보세요.';
+    }
     if (name === 'NotSupportedError') return '이 브라우저는 지원하지 않습니다.';
     if (name === 'SecurityError') return '보안 컨텍스트가 아닙니다 (https 필요).';
     return (e && e.message) ? e.message : '알 수 없는 오류';
