@@ -101,7 +101,18 @@
           ],
           authenticatorSelection: {
             authenticatorAttachment: 'platform',
-            residentKey: 'required',
+            // **`required` 로 두지 말 것.** 발견 가능(discoverable) 자격증명은
+            // 우리에게 필요 없다 — 잠금해제 때 늘 `allowCredentials` 로
+            // id 를 직접 넘기기 때문이다(넘길 것이 없으면 아예 부르지 않는다).
+            //
+            // 그런데 `required` 는 안드로이드에서 Google 비밀번호 관리자의
+            // 패스키 흐름을 강제하고, 거기에는 **화면잠금 PIN 확인** 단계가
+            // 따라붙는다. 지문을 쓰는 사람에게 숫자판이 뜨는 이유다.
+            // 얻는 것 없이 요구만 늘린 셈이라 되돌린다.
+            residentKey: 'preferred',
+            // 고를 수 있는 것은 여기까지다 — "사용자 확인은 반드시 받아라".
+            // **지문이냐 PIN 이냐는 플랫폼이 정한다.** WebAuthn 에 특정 생체
+            // 수단을 지정하는 길은 없다.
             userVerification: 'required',
           },
           timeout: 120000,
