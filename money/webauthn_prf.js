@@ -42,20 +42,19 @@
   // 쉼표로 이어 붙인 base64url id 목록을 WebAuthn 서술자 배열로 바꾼다.
   // base64url 알파벳에 쉼표가 없으므로 이 구분자는 안전하다.
   //
-  // `transports: ['internal']` 이 중요하다. 비워 두면 브라우저는 이 자격증명이
-  // 어디 있는지 모르므로 **다른 기기로 QR 전송(hybrid)** 까지 선택지로 내민다.
-  // 안드로이드에서 아이폰의 자격증명을 요구하게 되면 "사용 가능한 로그인 정보
-  // 없음 — QR 코드를 스캔하세요" 가 뜬다. 우리는 등록을 `platform` 으로만
-  // 받으므로 전부 그 기기 안에 있고, 그렇게 알려 주면 그 흐름이 사라진다.
+  // **`transports` 를 넣지 말 것.** 한 번 `['internal']` 로 좁혀 봤는데,
+  // 갤럭시에서 **방금 만든 패스키를 다시 찾지 못해** 등록이 "사용 가능한
+  // 패스키가 없습니다" 로 끝났다. 안드로이드 패스키는 Google 비밀번호
+  // 관리자에 들어가고 그 전송 방식이 `internal` 하나로 보고되지 않는다.
+  //
+  // 원래 좁히려던 이유(QR 전송 창이 뜨는 것)는 **모르는 기기에서 자동으로
+  // `get()` 을 부르지 않는 것**으로 이미 해결했다. 추측으로 범위를 좁히는
+  // 쪽이 더 비쌌다.
   function toDescriptors(csv) {
     if (!csv) return [];
     return csv.split(',').filter(function (s) { return s.length > 0; })
         .map(function (id) {
-          return {
-            type: 'public-key',
-            id: b64urlToBytes(id),
-            transports: ['internal'],
-          };
+          return { type: 'public-key', id: b64urlToBytes(id) };
         });
   }
 
@@ -130,9 +129,16 @@
       }
 
       // 만들기 단계에서 값을 안 준 경우. 바로 한 번 더 물어서 받아 온다.
+      //
+      // **여기서 실패하면 패스키는 이미 만들어져 있다.** 그 사실을 메시지에
+      // 담는다 — 안 그러면 만들기가 실패한 것과 구분이 안 되고, 실기기
+      // 보고만으로는 어느 단계인지 알 수 없다. 실제로 그래서 한 번 헤맸다.
       const second = await window.scPrfAuthenticate(credentialId, saltB64);
       const parsed = JSON.parse(second);
-      if (!parsed.ok) return second;
+      if (!parsed.ok) {
+        return fail('패스키는 만들었지만 열쇠를 받지 못했습니다: ' + parsed.error,
+            'PrfAfterCreate');
+      }
       return JSON.stringify({
         ok: true,
         credentialId: credentialId,
