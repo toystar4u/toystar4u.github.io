@@ -29,8 +29,10 @@
     return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   }
 
-  function fail(message) {
-    return JSON.stringify({ ok: false, error: message });
+  // `code` 는 Dart 가 **조용히 넘어갈 실패와 알려야 할 실패**를 가르는 데 쓴다.
+  // 사용자가 Face ID 를 통과한 뒤의 실패까지 삼키면 고장 원인이 안 보인다.
+  function fail(message, code) {
+    return JSON.stringify({ ok: false, error: message, code: code || 'Error' });
   }
 
   function randomChallenge() {
@@ -100,11 +102,12 @@
           extensions: { prf: { eval: { first: salt } } },
         },
       });
-      if (!cred) return fail('패스키를 만들지 못했습니다.');
+      if (!cred) return fail('패스키를 만들지 못했습니다.', 'NoCredential');
 
       const ext = cred.getClientExtensionResults();
       if (!ext || !ext.prf || ext.prf.enabled !== true) {
-        return fail('이 기기는 보안카드 잠금해제에 필요한 PRF 확장을 지원하지 않습니다.');
+        return fail('이 기기는 보안카드 잠금해제에 필요한 PRF 확장을 지원하지 않습니다.',
+            'PrfUnsupported');
       }
 
       const credentialId = bytesToB64url(cred.rawId);
@@ -126,7 +129,7 @@
         prf: parsed.prf,
       });
     } catch (e) {
-      return fail(describe(e));
+      return fail(describe(e), e && e.name ? e.name : 'Error');
     }
   };
 
@@ -142,7 +145,7 @@
   window.scPrfAuthenticate = async function (credentialIdsCsv, saltB64) {
     try {
       const allow = toDescriptors(credentialIdsCsv);
-      if (allow.length === 0) return fail('등록된 기기가 없습니다.');
+      if (allow.length === 0) return fail('등록된 기기가 없습니다.', 'NoCredential');
 
       const assertion = await navigator.credentials.get({
         publicKey: {
@@ -153,11 +156,11 @@
           extensions: { prf: { eval: { first: b64urlToBytes(saltB64) } } },
         },
       });
-      if (!assertion) return fail('인증이 취소되었습니다.');
+      if (!assertion) return fail('인증이 취소되었습니다.', 'NotAllowedError');
 
       const ext = assertion.getClientExtensionResults();
       if (!ext || !ext.prf || !ext.prf.results || !ext.prf.results.first) {
-        return fail('인증기가 열쇠를 내주지 않았습니다. 암호로 열어 주세요.');
+        return fail('인증기가 열쇠를 내주지 않았습니다. 암호로 열어 주세요.', 'NoPrf');
       }
       return JSON.stringify({
         ok: true,
@@ -165,7 +168,7 @@
         prf: bytesToB64url(ext.prf.results.first),
       });
     } catch (e) {
-      return fail(describe(e));
+      return fail(describe(e), e && e.name ? e.name : 'Error');
     }
   };
 
