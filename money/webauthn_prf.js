@@ -41,11 +41,21 @@
 
   // 쉼표로 이어 붙인 base64url id 목록을 WebAuthn 서술자 배열로 바꾼다.
   // base64url 알파벳에 쉼표가 없으므로 이 구분자는 안전하다.
+  //
+  // `transports: ['internal']` 이 중요하다. 비워 두면 브라우저는 이 자격증명이
+  // 어디 있는지 모르므로 **다른 기기로 QR 전송(hybrid)** 까지 선택지로 내민다.
+  // 안드로이드에서 아이폰의 자격증명을 요구하게 되면 "사용 가능한 로그인 정보
+  // 없음 — QR 코드를 스캔하세요" 가 뜬다. 우리는 등록을 `platform` 으로만
+  // 받으므로 전부 그 기기 안에 있고, 그렇게 알려 주면 그 흐름이 사라진다.
   function toDescriptors(csv) {
     if (!csv) return [];
     return csv.split(',').filter(function (s) { return s.length > 0; })
         .map(function (id) {
-          return { type: 'public-key', id: b64urlToBytes(id) };
+          return {
+            type: 'public-key',
+            id: b64urlToBytes(id),
+            transports: ['internal'],
+          };
         });
   }
 
